@@ -7,7 +7,7 @@ entity codificatore_convoluzionale is
            i_start : in STD_LOGIC;
            i_clk : in STD_LOGIC;
            o_Y : out STD_LOGIC_vector (1 downto 0);
-           o_en : in std_logic);  --eneable usato per fermaremacchina stati
+           stop_en : in std_logic);  --eneable usato per fermaremacchina stati
 
 end codificatore_convoluzionale;
 
@@ -29,7 +29,7 @@ begin
       st_att <= s00;
      end if; 
       if (rising_edge(i_clk) and i_start ='1' ) then
-       if (o_en='1') then
+       if (stop_en='1') then
         st_att <= st_att;
        else 
         st_att <= st_prox;
@@ -40,7 +40,7 @@ begin
 end process;
 
 
-processo_parti_ti_prego : process(i_U, st_att, o_en, st_att)
+processo_parti_ti_prego : process(i_U, st_att)
 begin 
 -- decode output attuale
     case(st_att) is
@@ -92,8 +92,6 @@ end process;
 processo_stati : process(i_U, st_att )
 begin 
     st_prox <= st_att;
---if (o_en ='0') then
--- se enable = 1 allora non cambio stato, mantengo output invariato, latch volontario per stprox, eq. registro 2 bi
 -- decode prossimo stato 
     case(st_att) is
 --stato 00
@@ -105,7 +103,6 @@ begin
             st_prox <= s10;
           
            end if;
-          --sistemare formattazione + aggiungere process output separato da prox stato????
 --stato 01
         when s01 =>
             if (i_U = '0') then
