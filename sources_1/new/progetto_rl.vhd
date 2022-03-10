@@ -24,7 +24,7 @@ end project_reti_logiche;
 architecture arch_stati of project_reti_logiche is  --
 type stati is (sReStart, sCuscino, sRead, sConv1 ,sConv2,sConv3,sConv4,sWrite1 ,sConv5 , sConv6, sConv7, sConv8 , sWrite2, sTerm );
 signal st_att, st_prox : stati := sRestart;
-signal fU, b_en : std_logic:= '0';
+signal fU, stop_cod : std_logic:= '0';
 signal fY: std_logic_vector(1 downto 0);
 signal in_addr, out_addr, in_a_prox, out_a_prox, nTerminazione : std_logic_vector(15 downto 0) := (others => '0');
 signal in_value, out_value_buffer: std_logic_vector(7 downto 0);-- il msb in realtà viene letto dal segnale i_data dal convolutore
@@ -41,9 +41,9 @@ component codificatore_convoluzionale is
 
 begin 
  cod : codificatore_convoluzionale
-port map (i_start => i_start, i_U => fU, i_clk => i_clk, o_Y => fY, stop_en =>b_en, i_rst => i_rst);
+port map (i_start => i_start, i_U => fU, i_clk => i_clk, o_Y => fY, stop_en =>stop_cod, i_rst => i_rst);
 
- --processo per sincronizzare
+ --processo per sincronizzare, reset
 clockSinc : process(i_clk,i_start,i_rst, st_prox, in_a_prox, out_a_prox) is
     begin   
 if ( rising_edge(i_clk) ) then
@@ -66,7 +66,6 @@ end process;
 --------- output, tenuti fuori da fsm per pulizia e per evitare latch----------
 o_en <= '1' when (st_att = sRestart or st_att = sRead or st_att = sWrite1 or st_att = sWrite2) else '0';
 o_we <= '1' when (st_att = sWrite1 or st_att = sWrite2 ) else '0';
-b_en <= '1' when (st_att = sRestart or st_att = sCuscino or st_att = sRead or st_att = sWrite1 or st_att = sWrite2 or st_att = sTerm or st_att = sCuscino) else '0';
 o_done <= '1' when ((st_att = sTerm  and i_start = '1' and in_addr = nTerminazione) ) else '0';
 o_address<= in_addr when( st_att = sRead ) else--or st_prox = sRead
             out_addr when (st_att = sWrite1 or st_att = sWrite2 or st_prox = sWrite1 or st_prox = sWrite2) else (others => '0');
@@ -76,7 +75,7 @@ o_data <= out_value_buffer;
 
 
 --gestione stati e terminazione
-fsm : process(i_clk,i_data, i_start, st_att, in_addr, in_value,fY,out_addr,nTerminazione) is
+fsm : process(st_att, in_addr, i_start ,nTerminazione) is
 begin 
     case(st_att) is
         
@@ -124,7 +123,6 @@ begin
             if (in_addr /= nTerminazione) then
               st_prox <= sRead;
             else
-            
               if(rising_edge(i_start)) then  --se viene inserito un nuovo start per iniziare una codifica, resetta fsm
                 st_prox <= sRestart;
               end if;
@@ -152,9 +150,9 @@ if(i_clk'event and i_clk ='0')then
     
     --registro per valore da scrivere in write
     if (st_att = sConv2 or st_att = sConv6) then
-      out_value_buffer(7 downto 6) <= fY ;
+       out_value_buffer(7 downto 6) <= fY ;
     elsif (st_att = sConv3 or st_att = sConv7) then
-      out_value_buffer (5 downto 4) <= fY ;
+       out_value_buffer (5 downto 4) <= fY ;
     elsif(st_att = sConv4 or st_att = sConv8)then
         out_value_buffer (3 downto 2) <= fY  ;
     elsif (st_att = sWrite1 or st_att = sWrite2 )then
@@ -163,8 +161,7 @@ if(i_clk'event and i_clk ='0')then
     
     --registro per controllo terminazione flusso in entrata
     if (st_att = sRestart) then
-        nTerminazione(15 downto 8) <= (others =>'0') ;
-        nTerminazione(7 downto 0) <= i_data+1  ;
+        nTerminazione(15 downto 0) <= std_logic_vector(to_unsigned(((to_integer(unsigned(i_data))) + 1),16)) ;---tolto
     end if;
     
     --registro per salvare valore letto in memoria
@@ -174,6 +171,9 @@ if(i_clk'event and i_clk ='0')then
 end if;
 end process;
 
+-------------segnali fsm codificatore convoluzionale------------
+-- segnale per fermare fsm codificatore
+stop_cod <= '1' when (st_att = sRestart or st_att = sCuscino or st_att = sRead or st_att = sWrite1 or st_att = sWrite2 or st_att = sTerm or st_att = sCuscino) else '0';
 
 --entrata componente codificatore convoluzionale 
 fU <= in_value(7) when (st_att = sConv1) else
@@ -186,3 +186,132 @@ fU <= in_value(7) when (st_att = sConv1) else
       in_value(0) when (st_att = sConv8) else '-';
 
 end arch_stati;
+
+
+-----------------------------------------------------CODIFICATORE CONVOLUZIOINALE----------------------------------------------------------------
+                                                     -----------------------------
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+
+
+entity codificatore_convoluzionale is
+    Port ( i_U : in STD_LOGIC:='0';
+           i_start : in STD_LOGIC;
+           i_clk : in STD_LOGIC;
+           i_rst : in std_logic;
+           o_Y : out STD_LOGIC_vector (1 downto 0);
+           stop_en : in std_logic);  --eneable usato per fermaremacchina stati
+
+end codificatore_convoluzionale;
+
+
+
+architecture Behavioral of codificatore_convoluzionale is
+
+type stati is (s00,s01,s10,s11);
+signal st_att,st_prox : stati;
+--signals uscita
+signal p1,p2: std_logic:='0' ;
+
+begin 
+---CLOCK CON GESTIONE PROCESSI
+processo_syn_clk : process (i_clk,i_start, i_rst) is
+begin
+if(i_start='0' )then
+       st_att <= s00;  
+elsif((i_rst ='1') )then
+       st_att <= s00;
+elsif (rising_edge(i_clk) and i_start ='1' ) then
+       if (stop_en='1') then
+          st_att <= st_att;
+       else 
+          st_att <= st_prox;
+       end if; 
+          o_y(1) <= p1;--togliere per desincronizzare output testare temporizzazione output, ogni quanti clock a partire dal set di u l'uscita è corretta
+          o_y(0) <= p2;
+end if;
+end process;
+
+
+processo_out : process(i_U, st_att) is
+begin 
+    case(st_att) is
+
+        when s00 =>
+          if (i_U = '0') then
+            p1 <= '0';
+            p2 <= '0';
+          else  
+            p1 <= '1';
+            p2 <= '1';
+           end if;
+
+        when s01 =>
+            if (i_U = '0') then
+                p1 <= '1';
+                p2 <= '1';
+            else 
+                p1 <= '0';
+                p2 <= '0';
+            end if;
+
+       when s10 =>
+            if (i_U = '0') then
+                p1 <= '0';
+                p2 <= '1';
+            else 
+                p1 <= '1';
+                p2 <= '0';
+            end if;
+
+      when s11 =>
+            if (i_U = '0') then
+                p1 <= '1';
+                p2 <= '0';
+            else 
+                p1 <= '0';
+                p2 <= '1';
+            end if;
+
+end case;
+end process;
+
+processo_stati : process(i_U, st_att ) is
+begin 
+    st_prox <= st_att;
+    case(st_att) is
+
+        when s00 =>
+          if (i_U = '0') then
+            st_prox <= s00;
+            
+          else  
+            st_prox <= s10;
+          
+           end if;
+           
+        when s01 =>
+            if (i_U = '0') then
+                st_prox <= s00;
+            else 
+                st_prox <= s10;
+            end if;
+
+        when s10 =>
+            if (i_U = '0') then
+                st_prox <= s01;
+            else 
+                st_prox <= s11;
+            end if;
+
+        when s11 =>
+            if (i_U = '0') then
+                st_prox <= s01;
+            else 
+                st_prox <= s11;
+            end if;
+
+end case;
+end process;
+
+end Behavioral;
