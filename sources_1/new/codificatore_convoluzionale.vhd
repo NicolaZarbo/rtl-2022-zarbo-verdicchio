@@ -6,6 +6,7 @@ entity codificatore_convoluzionale is
     Port ( i_U : in STD_LOGIC:='0';
            i_start : in STD_LOGIC;
            i_clk : in STD_LOGIC;
+           i_rst : in std_logic;
            o_Y : out STD_LOGIC_vector (1 downto 0);
            stop_en : in std_logic);  --eneable usato per fermaremacchina stati
 
@@ -23,12 +24,17 @@ signal p1,p2, done: std_logic:='0' ;
 
 begin 
 
-processo_syn_clk : process (i_clk,i_start)
+processo_syn_clk : process (i_clk,i_start, i_rst)
 begin
-    if(rising_edge(i_start))then
-      st_att <= s00;
-     end if; 
-      if (rising_edge(i_clk) and i_start ='1' ) then
+if(rising_edge(i_start) )then
+       st_att <= s00;
+end if;  
+
+if((i_rst ='1') )then
+       st_att <= s00;
+elsif (rising_edge(i_clk) and i_start ='1' ) then
+    
+       
        if (stop_en='1') then
         st_att <= st_att;
        else 
@@ -40,7 +46,7 @@ begin
 end process;
 
 
-processo_parti_ti_prego : process(i_U, st_att)
+processo_out : process(i_U, st_att)
 begin 
 -- decode output attuale
     case(st_att) is

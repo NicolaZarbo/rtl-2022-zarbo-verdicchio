@@ -21,8 +21,8 @@ o_data : out std_logic_vector (7 downto 0)
 end project_reti_logiche;
 
 
-architecture arch_stati of project_reti_logiche is
-type stati is (sReStart,sCuscino, sRead, sConv1 ,sConv2,sConv3,sConv4,sWrite1 ,sConv5 , sConv6, sConv7, sConv8 , sWrite2, sTerm );
+architecture arch_stati of project_reti_logiche is  --
+type stati is (sReStart, sCuscino, sRead, sConv1 ,sConv2,sConv3,sConv4,sWrite1 ,sConv5 , sConv6, sConv7, sConv8 , sWrite2, sTerm );
 signal st_att, st_prox : stati := sRestart;
 signal fU, b_en : std_logic:= '0';
 signal fY: std_logic_vector(1 downto 0);
@@ -33,6 +33,7 @@ component codificatore_convoluzionale is
     Port ( i_U : in STD_LOGIC;
            i_start : in STD_LOGIC;
            i_clk : in STD_LOGIC;
+           i_rst :in std_logic;
            stop_en : in std_logic;
            o_Y : out STD_LOGIC_vector);
  end component;
@@ -40,7 +41,7 @@ component codificatore_convoluzionale is
 
 begin 
  cod : codificatore_convoluzionale
-port map (i_start => i_start, i_U => fU, i_clk => i_clk, o_Y => fY, stop_en =>b_en);
+port map (i_start => i_start, i_U => fU, i_clk => i_clk, o_Y => fY, stop_en =>b_en, i_rst => i_rst);
 
  --processo per sincronizzare
 clockSinc : process(i_clk,i_start,i_rst, st_prox, in_a_prox, out_a_prox) is
@@ -65,8 +66,8 @@ end process;
 --------- output, tenuti fuori da fsm per pulizia e per evitare latch----------
 o_en <= '1' when (st_att = sRestart or st_att = sRead or st_att = sWrite1 or st_att = sWrite2) else '0';
 o_we <= '1' when (st_att = sWrite1 or st_att = sWrite2 ) else '0';
-b_en <= '1' when (st_att = sRestart or st_att = sRead or st_att = sWrite1 or st_att = sWrite2 or st_att = sTerm or st_att = sCuscino) else '0';
-o_done <= '1' when (st_att = sTerm and in_addr = nTerminazione and i_start = '1') else '0';
+b_en <= '1' when (st_att = sRestart or st_att = sCuscino or st_att = sRead or st_att = sWrite1 or st_att = sWrite2 or st_att = sTerm or st_att = sCuscino) else '0';
+o_done <= '1' when ((st_att = sTerm  and i_start = '1' and in_addr = nTerminazione) ) else '0';
 o_address<= in_addr when( st_att = sRead ) else--or st_prox = sRead
             out_addr when (st_att = sWrite1 or st_att = sWrite2 or st_prox = sWrite1 or st_prox = sWrite2) else (others => '0');
 o_data <= out_value_buffer;
@@ -82,8 +83,8 @@ begin
         when sReStart => --stato di partenza e reset
             st_prox <= sCuscino;
             
-        when sCuscino => --in sintesi sembra che lo comprima con read, è utile?
-            st_prox <= sRead;
+       when sCuscino => --serve unicamente per il caso in cui in mem 0000 leggo il valore '00000000';
+            st_prox <= sTerm;
             
         when sRead =>
             st_prox <= sConv1;
