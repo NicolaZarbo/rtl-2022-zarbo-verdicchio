@@ -26,8 +26,10 @@ type stati is (sReStart, sCuscino, sRead, sCod1 ,sCod2,sCod3,sCod4,sWrite1 ,sCod
 signal st_att, st_prox : stati := sRestart;
 signal fU, stop_cod : std_logic:= '0';
 signal fY: std_logic_vector(1 downto 0) := (others => '0');
-signal in_addr, out_addr, in_a_prox, out_a_prox, nTerminazione : std_logic_vector(15 downto 0) := (others => '0');
+signal in_addr, out_addr, in_a_prox, out_a_prox  : std_logic_vector(15 downto 0) := (others => '0');
 signal in_value, out_value_buffer: std_logic_vector(7 downto 0);
+signal nTerminazione: std_logic_vector(8 downto 0) := (others => '0'); --nTerm di 9 bit, val max = 255 + 1 
+
 
 component codificatore_convoluzionale is
     Port ( i_U : in STD_LOGIC;
@@ -65,7 +67,7 @@ end process;
 --------- output, tenuti fuori da fsm per pulizia e per evitare latch----------
 o_en <= '1' when (st_att = sRestart or st_att = sRead or st_att = sWrite1 or st_att = sWrite2) else '0';
 o_we <= '1' when (st_att = sWrite1 or st_att = sWrite2 ) else '0';
-o_done <= '1' when ((st_att = sTerm  and i_start = '1' and in_addr = nTerminazione) ) else '0';
+o_done <= '1' when ((st_att = sTerm  and i_start = '1' and in_addr(8 downto 0) = nTerminazione) ) else '0'; 
 o_address<= in_addr when( st_att = sRead ) else
             out_addr when (st_att = sWrite1 or st_att = sWrite2 or st_prox = sWrite1 or st_prox = sWrite2) else (others => '0');
 o_data <= out_value_buffer;
@@ -119,7 +121,7 @@ begin
             st_prox <= sTerm;    
             
         when sTerm=>   -- se finisce parole da leggere (nTerm = inAddr) e start ='1' -> done =1
-            if (in_addr /= nTerminazione) then
+            if (in_addr(8 downto 0) /= nTerminazione) then
               st_prox <= sRead;
             elsif(i_start='0') then  --se viene inserito un nuovo start per iniziare una codifica, resetta fsm
                 st_prox <= sRestart;
@@ -160,7 +162,7 @@ if(i_clk'event and i_clk ='0')then
     
     --registro per controllo terminazione flusso in entrata
     if (st_att = sRestart) then
-        nTerminazione(15 downto 0) <= std_logic_vector(to_unsigned(((to_integer(unsigned(i_data))) + 1),16)) ;
+        nTerminazione(8 downto 0) <= std_logic_vector(to_unsigned(((to_integer(unsigned(i_data))) + 1),9)) ;
     end if;
     
     --registro per salvare valore letto in memoria
@@ -218,6 +220,7 @@ begin
 ---CLOCK CON GESTIONE PROCESSI
 processo_syn_clk : process (i_clk,i_start, i_rst, s_prox, st_att, p1,p2, stop_en) is
 begin
+
 if(i_start='0' )then
        st_att <= s00; 
        o_y(1) <= '0';
@@ -226,6 +229,7 @@ elsif((i_rst ='1') )then
        st_att <= s00;
        o_y(1) <= '0';
        o_y(0) <= '0';
+       
 elsif (rising_edge(i_clk)  ) then
        if (stop_en='1') then
           st_att <= st_att;
