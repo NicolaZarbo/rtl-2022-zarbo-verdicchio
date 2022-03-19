@@ -41,10 +41,10 @@
 	---------------|||disegno fsm|||------------------------
 
 	Descrizione stati:
-	* sReStart : stato di reset
-	* sCuscino : stato attraversato solo una volta in tutta l'operzione di codifica, serve per permettere al componente di funzionare quando in  memoria '0000' è presente il valore '0'
-	* sTerm : controllo terminazione codifica
-	* sRead : stato di lettura, fornisce alla ram i segnali per leggere una nuova parola
+	* sReStart : stato di reset, viene letto la cella all'indirizzo '0000' e il suo valore incrementato di uno viene salvato in nTerminazione
+	* sCuscino : stato attraversato solo una volta in tutta l'operzione di codifica, serve per consentire funzionamento con n di parole nullo ( per ulteriori info vedere test seq_min) 
+	* sTerm : controllo terminazione codifica, confronta il numero totale di parole da leggere (+ 1) con il prossim indirizzo di lettura 
+	* sRead : stato di lettura, fornisce alla ram i segnali per leggere la prossima parola da elaborare
 	* sCod1 : codificatore in funzionamento, viene salvata la parola appena letta da i_data nel registro in_value, viene inserito in fU il primo bit dalla parola letta
 	* sCod2-sCod4 : inserito in fU il nuovo bit da leggere preso da in_value, bit codificati da fY salvati in out_value_buffer nell'apposita posizione
 	* sWrite1 : inseriti bit da fY negli ultimi due bit del registro out_value_buffer, forniti segnali alla ram per scrivere la parola appena codificata, codificatore bloccato
@@ -92,5 +92,5 @@
 -----------------------------------------------------------------------------------
 # Conclusione
 
-
+leggibilità over velocità
 	
