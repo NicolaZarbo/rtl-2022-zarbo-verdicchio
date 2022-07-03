@@ -1,5 +1,5 @@
-# progreti 2022
+# progetto reti logiche 2022
+*Scaglione Palermo.*  
+30 + Lode 
 
-
-# 30 L 
 lmao
