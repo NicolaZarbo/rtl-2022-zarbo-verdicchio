@@ -1,5 +1,4 @@
 # progetto reti logiche 2022
 *Scaglione Palermo.*  
-30 + Lode 
+30 e Lode 
 
-lmao
